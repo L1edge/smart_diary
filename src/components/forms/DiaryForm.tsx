@@ -7,37 +7,43 @@ import { NeonButton } from '@/components/ui'
 export default function DiaryForm() {
   const [text, setText] = useState('')
   const [isAnalyzing, setIsAnalyzing] = useState(false)
-  const [result, setResult] = useState<any>(null)
 
   const supabase = createClient()
 
-  const handleAnalyze = async () => {
+    const handleAnalyze = async () => {
     if (!text.trim()) return
     setIsAnalyzing(true)
 
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('Користувача не знайдено')
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) throw new Error('Користувача не знайдено')
 
-      const res = await fetch('/api/analyze', {
+        // ── Тягнемо профіль з БД ──────────────────────────────
+        const { data: profile } = await supabase
+        .from('profiles')
+        .select('occupation, hobbies')
+        .eq('id', user.id)
+        .single()
+        // ──────────────────────────────────────────────────────
+
+        const res = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          text,
-          userContext: {
-            occupation: 'Frontend Developer',
-            hobbies: 'cars, gym, Next.js, girls',
-          },
+            text,
+            userContext: {
+            occupation: profile?.occupation ?? '',
+            hobbies: profile?.hobbies ?? '',
+            },
         }),
-      })
+        })
+
 
       const data = await res.json()
 
       if (data.error) {
         throw new Error(data.details || data.error)
       }
-
-      setResult(data)
 
       const { error: dbError } = await supabase.from('daily_logs').insert({
         user_id: user.id,
@@ -90,15 +96,6 @@ export default function DiaryForm() {
           {isAnalyzing ? 'Синхронізація...' : 'Записати'}
         </NeonButton>
       </div>
-
-      {result && (
-        <div className="mt-6 rounded-2xl border border-white/[0.06] bg-black/20 p-4">
-          <h3 className="mb-2 text-sm font-semibold text-fuchsia-300">API Response: Успішно збережено</h3>
-          <pre className="overflow-x-auto text-xs text-gray-400">
-            {JSON.stringify(result, null, 2)}
-          </pre>
-        </div>
-      )}
     </div>
   )
 }
