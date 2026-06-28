@@ -30,10 +30,6 @@ export function BottomNav() {
           Logout
         </NeonButton>
 
-        <button className="flex h-14 w-14 -translate-y-4 items-center justify-center rounded-full border-4 border-[#050507] bg-fuchsia-500 text-2xl text-white glow-pink">
-          +
-        </button>
-
         <button className="p-3 text-gray-400 transition-colors hover:text-white" aria-label="Insights">
           <div className="h-6 w-6 rounded-md bg-white/10"></div>
         </button>

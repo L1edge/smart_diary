@@ -15,7 +15,7 @@ export function ProgressTrack({ label, percentage }: ProgressTrackProps) {
 
       <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/10">
         <div
-          className="h-full rounded-full bg-gradient-to-r from-[#8A2BE2] to-[#FF00FF] transition-all duration-500 ease-out glow-pink"
+          className="h-full rounded-full bg-linear-to-r from-[#8A2BE2] to-[#FF00FF] transition-all duration-500 ease-out glow-pink"
           style={{ width: `${safePercentage}%` }}
         ></div>
       </div>

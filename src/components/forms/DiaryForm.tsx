@@ -4,40 +4,41 @@ import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { NeonButton } from '@/components/ui'
 
-export default function DiaryForm() {
+type DiaryFormProps = {
+  onSaved?: () => void | Promise<void>
+}
+
+export default function DiaryForm({ onSaved }: DiaryFormProps) {
   const [text, setText] = useState('')
   const [isAnalyzing, setIsAnalyzing] = useState(false)
 
   const supabase = createClient()
 
-    const handleAnalyze = async () => {
+  const handleAnalyze = async () => {
     if (!text.trim()) return
     setIsAnalyzing(true)
 
     try {
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) throw new Error('Користувача не знайдено')
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('Користувача не знайдено')
 
-        // ── Тягнемо профіль з БД ──────────────────────────────
-        const { data: profile } = await supabase
+      const { data: profile } = await supabase
         .from('profiles')
         .select('occupation, hobbies')
         .eq('id', user.id)
-        .single()
-        // ──────────────────────────────────────────────────────
+        .maybeSingle()
 
-        const res = await fetch('/api/analyze', {
+      const res = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-            text,
-            userContext: {
+          text,
+          userContext: {
             occupation: profile?.occupation ?? '',
             hobbies: profile?.hobbies ?? '',
-            },
+          },
         }),
-        })
-
+      })
 
       const data = await res.json()
 
@@ -62,6 +63,7 @@ export default function DiaryForm() {
       if (dbError) throw dbError
 
       setText('')
+      await onSaved?.()
     } catch (error: any) {
       console.error('Помилка процесу:', error.message)
       alert(`Помилка: ${error.message}`)
