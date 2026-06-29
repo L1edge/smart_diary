@@ -22,9 +22,15 @@ type DashboardEntry = {
   follow_up_questions?: string[] | null
 }
 
+function truncateTitle(value: string, maxLength = 30) {
+  const cleaned = value.replace(/\s+/g, ' ').trim()
+  if (!cleaned) return 'Новий запис'
+  if (cleaned.length <= maxLength) return cleaned
+  return `${cleaned.slice(0, maxLength - 1)}…`
+}
+
 function deriveTitle(text: string) {
-  const cleaned = text.replace(/\s+/g, ' ').trim()
-  return cleaned.length > 72 ? `${cleaned.slice(0, 69)}...` : cleaned || 'Новий запис'
+  return truncateTitle(text, 30)
 }
 
 function shouldReanalyze(originalText: string, updatedText: string) {
@@ -84,7 +90,7 @@ export default function EntryDetailPage() {
 
       const currentEntry = data as DashboardEntry
       setEntry(currentEntry)
-      setDraftTitle(currentEntry.title?.trim() || deriveTitle(currentEntry.raw_text || ''))
+      setDraftTitle(truncateTitle(currentEntry.title?.trim() || deriveTitle(currentEntry.raw_text || ''), 30))
       setDraftText(currentEntry.raw_text || '')
     }
 
@@ -99,14 +105,13 @@ export default function EntryDetailPage() {
     return null
   }
 
-  const title = entry.title?.trim() || entry.raw_text?.trim() || 'Запис'
-
   const handleSave = async () => {
     if (!entry) return
 
-    const nextTitle = draftTitle.trim() || deriveTitle(draftText)
+    const nextTitle = truncateTitle(draftTitle.trim() || deriveTitle(draftText), 30)
     const nextText = draftText.trim()
-    const shouldAnalyze = shouldReanalyze(entry.raw_text || '', nextText)
+    const titleChanged = (entry.title?.trim() || deriveTitle(entry.raw_text || '')) !== nextTitle
+    const shouldAnalyze = shouldReanalyze(entry.raw_text || '', nextText) || titleChanged
 
     setIsSaving(true)
 
@@ -208,8 +213,13 @@ export default function EntryDetailPage() {
           <Link href="/dashboard" className="mb-4 inline-flex text-sm text-fuchsia-300 hover:text-fuchsia-200">
             ← Назад до дашборду
           </Link>
-          <h1 className="text-2xl font-semibold text-white">{title}</h1>
-          <p className="mt-2 text-sm text-gray-400">{new Date(entry.created_at).toLocaleString('uk-UA')}</p>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-[10px] uppercase tracking-[0.3em] text-fuchsia-400/80">Запис</p>
+              <h1 className="mt-1 text-2xl font-semibold text-white">Запис</h1>
+            </div>
+            <p className="text-sm text-gray-400">{new Date(entry.created_at).toLocaleString('uk-UA')}</p>
+          </div>
         </div>
 
         <div className="glass-panel rounded-[28px] p-6 sm:p-7">
@@ -217,10 +227,12 @@ export default function EntryDetailPage() {
             <span className="mb-2 block text-xs uppercase tracking-[0.25em] text-gray-500">Заголовок</span>
             <input
               value={draftTitle}
-              onChange={(event) => setDraftTitle(event.target.value)}
+              onChange={(event) => setDraftTitle(event.target.value.slice(0, 30))}
+              maxLength={30}
               className="w-full rounded-xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-gray-200 placeholder-gray-600 transition-all duration-300 focus:border-[#FF00FF]/60 focus:bg-black/60 focus:outline-none focus:ring-1 focus:ring-[#FF00FF]/50"
               placeholder="Введіть заголовок..."
             />
+            <p className="mt-2 text-xs text-gray-500">До 30 символів</p>
           </label>
 
           <label className="block">
@@ -245,7 +257,7 @@ export default function EntryDetailPage() {
         </div>
 
         <div className="glass-panel rounded-[28px] p-6 sm:p-7">
-          <NeonButton onClick={handleDelete} disabled={isDeleting} className="rounded-full border border-rose-500/30 bg-black/70 px-4 py-2 text-[10px] tracking-[0.25em]">
+          <NeonButton onClick={handleDelete} disabled={isDeleting} className="w-full rounded-full border border-rose-500/30 bg-black/70 px-4 py-2 text-[10px] tracking-[0.25em]">
             {isDeleting ? 'Видалення...' : 'Видалити'}
           </NeonButton>
         </div>

@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { BottomNav, NeonButton, ProgressTrack, StatusCard } from '@/components/ui'
 import DiaryForm from '@/components/forms/DiaryForm'
 
-type DashboardEntry = {
+export type DashboardEntry = {
   id: string
   created_at: string
   raw_text: string
@@ -14,6 +14,7 @@ type DashboardEntry = {
   mood?: number | null
   energy?: number | null
   stress?: number | null
+  ritual?: number | null // Додано на випадок, якщо колонка існує
   tags?: string[] | null
   insight_sentence?: string | null
   goals_progress?: Array<{ goal_name: string; progress_made: boolean; details: string }> | null
@@ -25,6 +26,7 @@ type DashboardEntry = {
 type DashboardClientProps = {
   initialEntries: DashboardEntry[]
   userEmail: string
+  userName?: string | null // Додаємо опціональне поле для імені/ніка
 }
 
 function deriveTitle(text: string) {
@@ -86,13 +88,14 @@ function shouldReanalyze(originalText: string, updatedText: string) {
   return similarity < 0.35 || lengthDelta > 120
 }
 
-export default function DashboardClient({ initialEntries, userEmail }: DashboardClientProps) {
+export default function DashboardClient({ initialEntries, userEmail, userName }: DashboardClientProps) {
   const router = useRouter()
   const supabase = useMemo(() => createClient(), [])
   const [entries, setEntries] = useState(initialEntries)
-  const [selectedEntryId, setSelectedEntryId] = useState<string | null>(initialEntries[0]?.id ?? null)
-  const [draftTitle, setDraftTitle] = useState('')
-  const [draftText, setDraftText] = useState('')
+  const initialSelected = initialEntries[0] ?? null
+  const [selectedEntryId, setSelectedEntryId] = useState<string | null>(initialSelected?.id ?? null)
+  const [draftTitle, setDraftTitle] = useState(initialSelected ? getEntryTitle(initialSelected) : '')
+  const [draftText, setDraftText] = useState(initialSelected?.raw_text || '')
   const [isSaving, setIsSaving] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
@@ -126,6 +129,36 @@ export default function DashboardClient({ initialEntries, userEmail }: Dashboard
   }, [entries, selectedEntryId])
 
   const selectedEntry = entries.find((entry) => entry.id === selectedEntryId) ?? null
+
+  // --- ДИНАМІЧНІ МЕТРИКИ ---
+  // Використовуємо useMemo, щоб перераховувати тільки тоді, коли змінюється список entries
+  const currentMetrics = useMemo(() => {
+    const latest = entries[0] // Беремо найновіший запис
+    
+    if (!latest) return { mood: '—', energy: '—', ritual: '—' }
+
+    // 1. Форматуємо настрій
+    const mood = latest.mood != null ? `${latest.mood}/10` : '—'
+
+    // 2. Форматуємо енергію (адаптація до відсотків)
+    let energy = '—'
+    if (latest.energy != null) {
+      const eValue = latest.energy <= 10 ? latest.energy * 10 : latest.energy
+      energy = `${eValue}%`
+    }
+
+    // 3. Форматуємо ритуал
+    let ritual = '—'
+    if (latest.ritual != null) {
+      ritual = `${latest.ritual}/5`
+    } else if (latest.checklist_hits && Array.isArray(latest.checklist_hits)) {
+      // Фолбек: рахуємо виконані звички з JSON
+      const completed = latest.checklist_hits.filter((hit) => hit.completed).length
+      ritual = `${completed}/5`
+    }
+
+    return { mood, energy, ritual }
+  }, [entries])
 
   const handleTouchStart = (event: TouchEvent<HTMLElement>) => {
     setTouchStartX(event.touches[0]?.clientX ?? null)
@@ -383,44 +416,6 @@ export default function DashboardClient({ initialEntries, userEmail }: Dashboard
                       </div>
                     </button>
 
-                    <div className="absolute right-2 top-2">
-                      <button
-                        type="button"
-                        onClick={(event) => {
-                          event.stopPropagation()
-                          setMobileMenuEntryId((current) => (current === entry.id ? null : entry.id))
-                        }}
-                        className="rounded-full border border-fuchsia-500/20 bg-black/70 px-2 py-2 text-lg text-fuchsia-200"
-                        aria-label="More actions"
-                      >
-                        ⋮
-                      </button>
-
-                      {mobileMenuEntryId === entry.id && (
-                        <div className="absolute right-0 top-full z-20 mt-2 min-w-[150px] rounded-2xl border border-white/10 bg-[#08080b] p-2 shadow-2xl">
-                          <button
-                            type="button"
-                            onClick={(event) => {
-                              event.stopPropagation()
-                              void handleRenameEntry(entry)
-                            }}
-                            className="w-full rounded-xl px-3 py-2 text-left text-sm text-gray-200 transition-colors hover:bg-white/5"
-                          >
-                            Перейменувати
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(event) => {
-                              event.stopPropagation()
-                              void handleDeleteEntry(entry.id)
-                            }}
-                            className="mt-1 w-full rounded-xl px-3 py-2 text-left text-sm text-rose-300 transition-colors hover:bg-rose-500/10"
-                          >
-                            Видалити
-                          </button>
-                        </div>
-                      )}
-                    </div>
                   </div>
                 )
               })
@@ -442,7 +437,7 @@ export default function DashboardClient({ initialEntries, userEmail }: Dashboard
               <p className="text-sm uppercase tracking-[0.35em] text-fuchsia-400/80">Smart Diary</p>
               <h1 className="mt-2 text-3xl font-semibold text-white sm:text-4xl">Дашборд</h1>
               <p className="mt-2 max-w-2xl text-sm text-gray-400 sm:text-base">
-                Авторизовано як <span className="text-[#58a6ff]">{userEmail}</span>
+                Авторизовано як <span className="text-[#58a6ff]">{userName || userEmail}</span>
               </p>
             </div>
             <div className="rounded-2xl border border-fuchsia-500/20 bg-fuchsia-500/10 px-4 py-3 text-sm text-fuchsia-200">
@@ -451,10 +446,11 @@ export default function DashboardClient({ initialEntries, userEmail }: Dashboard
           </div>
         </header>
 
+        {/* ДИНАМІЧНИЙ БЛОК МЕТРИК */}
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          <StatusCard title="Настрій" value="7/10" icon={<span className="text-xl text-fuchsia-300">✦</span>} />
-          <StatusCard title="Енергія" value="82%" icon={<span className="text-xl text-fuchsia-300">⚡</span>} />
-          <StatusCard title="Ритуал" value="3/5" icon={<span className="text-xl text-fuchsia-300">⏱</span>} />
+          <StatusCard title="Настрій" value={currentMetrics.mood} icon={<span className="text-xl text-fuchsia-300">✦</span>} />
+          <StatusCard title="Енергія" value={currentMetrics.energy} icon={<span className="text-xl text-fuchsia-300">⚡</span>} isAccent={true} />
+          <StatusCard title="Ритуал" value={currentMetrics.ritual} icon={<span className="text-xl text-fuchsia-300">⏱</span>} />
         </section>
 
         <section className="grid gap-6 xl:grid-cols-[0.85fr_1.15fr]">
@@ -521,7 +517,7 @@ export default function DashboardClient({ initialEntries, userEmail }: Dashboard
                     className="w-auto! rounded-full border border-rose-500/30 bg-black/70 px-4 py-2 text-[10px] tracking-[0.25em]"
                     disabled={isDeleting}
                   >
-                    {isDeleting ? 'Видалення...' : 'Delete'}
+                    {isDeleting ? 'Видалення...' : 'Видалити'}
                   </NeonButton>
                 )}
               </div>
@@ -565,7 +561,9 @@ export default function DashboardClient({ initialEntries, userEmail }: Dashboard
               )}
             </div>
 
-            <DiaryForm onSaved={refreshEntries} />
+            <div id="new-entry-form">
+              <DiaryForm onSaved={refreshEntries} />
+            </div>
 
             <div className="hidden lg:block space-y-4">
               <ProgressTrack label="Прогрес до цілей" percentage={72} />

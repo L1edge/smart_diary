@@ -4,6 +4,7 @@ type StatusCardProps = {
   title: string
   value: string
   icon: ReactNode
+  isAccent?: boolean
 }
 
 export function StatusCard({ title, value, icon }: StatusCardProps) {
